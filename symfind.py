@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import matplotlib.pyplot as plt
 
 a = np.array([1.0, 0.0, 0.0])
 b = np.array([0.0, 1.0, 0.0])
@@ -8,7 +9,7 @@ c = np.array([0.0, 0.0, 1.0])
 struct = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
 basis   = np.array([a, b, c])
 
-epsilon = 0.01
+epsilon = 0.001
 
 axis_order = [1, 2, 3, 4, 6]
 
@@ -31,16 +32,16 @@ def rotate_x(A, phi):
     return np.transpose(np.dot(R_x, np.transpose(A)))
 
 def rotate_y(A, phi):
-    R_x = np.array([[ np.cos(phi), 0.0, np.sin(phi)],
+    R_y = np.array([[ np.cos(phi), 0.0, np.sin(phi)],
                     [ 0.0,         1.0, 0.0],
                     [-np.sin(phi), 0.0, np.cos(phi)]])
-    return np.transpose(np.dot(R_x, np.transpose(A)))
+    return np.transpose(np.dot(R_y, np.transpose(A)))
 
 def rotate_z(A, phi):
-    R_x = np.array([[np.cos(phi), -np.sin(phi), 0.0],
+    R_z = np.array([[np.cos(phi), -np.sin(phi), 0.0],
                     [np.sin(phi),  np.cos(phi), 0.0],
                     [0.0,          0.0,         1.0]])
-    return np.transpose(np.dot(R_x, np.transpose(A)))
+    return np.transpose(np.dot(R_z, np.transpose(A)))
 
 def J(A, basis):
     return np.transpose(np.dot(np.transpose(basis), np.transpose(A)))
@@ -48,8 +49,8 @@ def J(A, basis):
 def J_(A_, basis):
     return np.transpose(np.dot(np.linalg.inv(np.transpose(basis)), np.transpose(A_)))
 
-def reduce(direct):
-    for v in direct:
+def reduce(struct):
+    for v in struct:
         v[0] = v[0] % 1
         v[1] = v[1] % 1
         v[2] = v[2] % 1
@@ -82,11 +83,30 @@ def reduce(direct):
         if np.abs(v[2] - 1.0) < epsilon:
             v[2] = 0.0
 
-    return direct
+    return struct
 
-def expand(direct):
-   print() 
-
+def extend(struct):
+    tmp = np.zeros((len(struct) * 8, 3))
+    for j in range(0, 8):
+        for i in range(len(struct) * j, len(struct) * (j + 1)):
+            if (j == 0):
+                tmp[i] = struct[i % len(struct)]
+            if (j == 1):
+                tmp[i] = struct[i % len(struct)] - [1.0, 0.0, 0.0]
+            if (j == 2):
+                tmp[i] = struct[i % len(struct)] - [0.0, 1.0, 0.0]
+            if (j == 3):
+                tmp[i] = struct[i % len(struct)] - [0.0, 0.0, 1.0]
+            if (j == 4):
+                tmp[i] = struct[i % len(struct)] - [1.0, 1.0, 0.0]
+            if (j == 5):
+                tmp[i] = struct[i % len(struct)] - [0.0, 1.0, 1.0]
+            if (j == 6):
+                tmp[i] = struct[i % len(struct)] - [1.0, 0.0, 1.0]
+            if (j == 7):
+                tmp[i] = struct[i % len(struct)] - [1.0, 1.0, 1.0]
+    return tmp
+       
 def symcheck(struct, struct_):
     diff_tot = 0.0
     for i in range(len(struct)):
@@ -94,108 +114,131 @@ def symcheck(struct, struct_):
         for j in range(len(struct_)):
             if (np.linalg.norm(struct[i] - struct_[j]) < diff):
                 diff = np.linalg.norm(struct[i] - struct_[j])
-            # print('symfind: symcheck(): ', i, ' --- ', j, ', diff = ', np.linalg.norm(struct[i] - struct_[j]))
+            print('symfind: symcheck(): ', i, ' --- ', j, ', diff = ', np.linalg.norm(struct[i] - struct_[j]))
         if (np.isinf(diff)):
             print('symfind: symcheck(): error! infinite norm')
             exit(1)
-        # print('symfind: symcheck(): ', i, ', diff = ', diff)
+        print('symfind: symcheck(): ', i, ', diff = ', diff) 
         diff_tot += diff ** 2
     diff_tot = np.sqrt(diff_tot)
     if (diff_tot < epsilon):
-        # print('symfind: symcheck(): symmetry check passed!')
+        print('symfind: symcheck(): diff_tot = %.8f < epsilon = %.8f, symmetry check passed!' % (diff_tot, epsilon))
         return True
     else:
-        # print('symfind: symcheck(): symmetry check failed...')
+        print('symfind: symcheck(): diff_tot = %.8f > epsilon = %.8f, symmetry check failed...' % (diff_tot, epsilon))
         return False
 
 for i in range(depth):
     for j in range(depth):
         for k in range(depth):
-            if  ((i == 0) and (j == 0) and (k == 0)):
+            if ((i == 0) and (j == 0) and (k == 0)):
                 continue
             if (np.gcd.reduce([i, j, k]) != 1):
                 continue
 
             print('\nsymfind: checking [%d%d%d] axis... \n' % (i, j, k))
 
-            if ((i, j, k) != (1, 1, 1)) and ((i, j, k) != (1, 0, 0)):
+            if ((i, j, k) != (0, 0, 1)):
                 continue
 
-            axis  = a * i + b * j + c * k
-            beta  = np.arccos(np.dot(axis, np.array([0.0, 0.0, 1.0])) / (np.linalg.norm(axis)))
-            alpha = np.arccos(axis[0] / (np.linalg.norm(axis) * np.cos(np.pi / 2 - beta)))
+            # rotational axis, defined as Weiss indexes
+
+            axis = a * i + b * j + c * k
+        
+            # axis in basis -> axis in cart
+
+            axis_cart = J(axis, basis)
+
+            # Euler precession and nutation angles
+
+            beta  = np.arccos(np.dot(axis_cart, np.array([0.0, 0.0, 1.0])) / (np.linalg.norm(axis_cart)))
+            alpha = np.arccos(axis_cart[0] / (np.linalg.norm(axis_cart) * np.cos(np.pi / 2 - beta)))
+
+            print('alpha = %.2f pi' % (alpha / np.pi))
+            print('beta  = %.2f pi' % (beta  / np.pi))
+
+            # axis in cart -> axis (rotated Rzx) in cart
+
+            axis_cart_Rz  = rotate_z(axis_cart, alpha)
+            axis_cart_Rzx = rotate_x(axis_cart_Rz, beta)
 
             # struct in basis -> struct in cart
 
             struct_cart = J(struct, basis)
 
-            # basis -> basis_Rzx
+            # struct in cart -> struct (rotated Rzx) in cart 
 
-            basis_Rz  = rotate_z(basis, -alpha)
-            basis_Rzx = rotate_x(basis, -beta)
+            struct_cart_Rz  = rotate_z(struct_cart, alpha)
+            struct_cart_Rzx = rotate_x(struct_cart_Rz, beta)
+           
+            # basis -> basis (rotated Rzx)
 
-            # struct in cart -> struct in basis_Rzx
+            basis_Rz  = rotate_z(basis, alpha)
+            basis_Rzx = rotate_x(basis_Rz, beta)
 
-            struct_Rzx = J_(struct_cart, basis_Rzx)
+            # struct (rotated Rzx) in cart -> struct (rotated Rzx) in basis (rotated Rzx)
 
-            print('basis       = ', basis)
-            print('struct      = ', struct)
-            print('struct_cart = ', struct_cart)
-            print('basis_Rzx   = ', basis_Rzx)
-            print('struct_Rzx  = ', struct_Rzx)
+            struct_Rzx = J_(struct_cart_Rzx, basis_Rzx)
 
-            # struct_Rzx = to_cart(reduce(struct))
-            # struct_Rzx = rotate_z(struct_Rzx, alpha)
-            # struct_Rzx = rotate_x(struct_Rzx, beta)
-            # struct_Rzx = to_direct(struct_Rzx)
-            # struct_Rzx = reduce(struct_Rzx)
-            # struct_Rzx = to_cart(struct_Rzx)
+            # struct (rotated Rzx) in basis (rotated Rzx) -> struct (rotated Rzx, reducted and extended) in cart
 
-            # for ord in axis_order:
-            #     gamma      = 2 * np.pi / ord
-                # struct_Rzxz = rotate_z(struct_Rzx, gamma)
+            struct_Rzx          = reduce(struct_Rzx)
+            struct_Rzx_ext      = extend(struct_Rzx)
+            struct_cart_Rzx_ext = J(struct_Rzx_ext, basis_Rzx)
 
-                # struct_Rzxz = to_direct(struct_Rzxz)
-                # struct_Rzxz = reduce(struct_Rzxz)
-                # struct_Rzxz = to_cart(struct_Rzxz)
+            print('basis            = ', basis)
+            print('basis_Rz         = ', basis_Rz)
+            print('basis_Rzx        = ', basis_Rzx)
+            print('axis             = ', axis_cart)
+            print('axis_cart        = ', axis_cart)
+            print('axis_cart_Rz     = ', axis_cart_Rz)
+            print('axis_cart_Rzx    = ', axis_cart_Rzx)
+            print('struct           = ', struct)
+            print('struct_cart      = ', struct_cart)
+            print('struct_cart_Rz   = ', struct_cart_Rz)
+            print('struct_cart_Rzx  = ', struct_cart_Rzx)
+            print('struct_Rzx       = ', struct_Rzx)
 
-                # if ((i, j, k, ord) == (1, 1, 1, 1)):
-                #     print('struct      = ', to_cart(reduce(struct)))
-                #     print('struct_Rzx  = ', struct_Rzx)
-                #     print('struct_Rzxz = ', struct_Rzxz)
-                #     print('struct_Rzxz[1][1] = ', struct_Rzxz[1][1] < 1.0)
-                #     print('basis_Rzxz = ', rotate_z(rotate_x(rotate_z(np.array([a, b, c]), alpha), beta), gamma))
+            # Checking symmetries of different orders
 
-                # if (symcheck(struct_Rzx, struct_Rzxz)):
-                #     print('symfind: found axial symmetry along [%d%d%d] axis of %d order' % (i, j, k, ord))
+            for ord in axis_order:
 
+                if ord != 2:
+                    continue
 
+                # Euler rotation angle
 
-# for o_x in axis_order:
-#     # for o_y in axis_order:
-#     #     for o_z in axis_order:
-#             for i in range(o_x):
-#                 # for j in range(o_y):
-#                 #     for k in range(o_z):
-#                         phi_x = 2 * np.pi / o_x * i
-#                         # phi_y = 2 * np.pi / o_y * j
-#                         # phi_z = 2 * np.pi / o_z * k
+                gamma = 2 * np.pi / ord
 
-#                         if (i == 0) or ((o_x % i == 0) and (i != 1)):
-#                             continue
+                # struct (rotated Rzx, reducted and extended) in cart -> struct (rotated Rzxz, reducted and extended) in cart 
 
-                        # struct_ = to_cart(reduce(struct))
-                        # struct_ = rotate_x(struct_, phi_x)
-                        # # struct_ = rotate_y(struct_, phi_y)
-                        # # struct_ = rotate_z(struct_, phi_z)
-                        # struct_ = to_direct(struct_)
-                        # struct_ = reduce(struct_)
-                        # struct_ = to_cart(struct_)
-                        
-#                         norm = 0.0
+                struct_cart_Rzxz_ext = rotate_z(struct_cart_Rzx_ext, gamma)
 
-#                         for l in range(len(struct)):
-#                             norm += np.sqrt((struct_[l][0] - to_cart(reduce(struct))[l][0])**2 + (struct_[l][1] - to_cart(reduce(struct))[l][1])**2 + (struct_[l][2] - to_cart(reduce(struct))[l][2])**2)
+                # basis (rotated Rzx) -> basis (rotated Rzxz)
 
-#                         if (norm < epsilon):
-#                             print('symfind: point irreducible symmmetry rotation along OX found, phi = 2 pi / ', o_x, ' * ', i, ', order = ', o_x, ', with precision ~', epsilon)
+                basis_Rzxz = rotate_z(basis_Rzx, gamma)
+
+                # struct (rotated Rzxz, reducted and extended) in cart  -> struct (rotated Rzxz, reducted and extended) in basis (rotated Rzxz)
+
+                struct_Rzxz_ext = J_(struct_cart_Rzxz_ext, basis_Rzxz)
+
+                print('struct_Rzx_ext        = ', struct_Rzx_ext)
+                print('struct_cart_Rzx_ext   = ', struct_cart_Rzx_ext)
+                print('struct_Rzxz_ext       = ', struct_Rzxz_ext)
+                print('struct_cart_Rzxz_ext  = ', struct_cart_Rzxz_ext)
+
+                fig = plt.figure()
+                ax = fig.add_subplot(projection='3d')
+                ax.scatter(struct_cart_Rzx_ext[:, 0], struct_cart_Rzx_ext[:, 1], struct_cart_Rzx_ext[:, 2], marker='o')
+                ax.scatter(struct_cart_Rzxz_ext[:, 0], struct_cart_Rzxz_ext[:, 1], struct_cart_Rzxz_ext[:, 2], marker='^')
+
+                ax.set_xlabel('X Label')
+                ax.set_ylabel('Y Label')
+                ax.set_zlabel('Z Label')
+
+                plt.show()
+
+                if (symcheck(struct_cart_Rzx_ext, struct_cart_Rzxz_ext)):
+                    print('symfind: found point symmetry along [%d%d%d] axis of %d order!' % (i, j, k, ord))
+                else:
+                    print('symfind: no point symmetry along [%d%d%d] axis ...' % (i, j, k))
