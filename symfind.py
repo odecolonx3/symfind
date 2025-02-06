@@ -7,14 +7,14 @@ b = np.array([0.0, 1.0, 0.0])
 c = np.array([0.0, 0.0, 1.0])
 
 struct = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]])
-basis   = np.array([a, b, c])
+basis  = np.array([a, b, c])
 
-epsilon = 0.001
+epsilon = 1.0e-3
+delta   = 1.0e-3
 
 axis_order = [1, 2, 3, 4, 6]
 
-depth = 4
-scale = 2
+depth = 2
 
 print('symfind - simple crystal structure symmetry finder')
 
@@ -76,11 +76,11 @@ def reduce(struct):
         if v[2] == 1.0:
             v[2] = 0.0
         
-        if np.abs(v[0] - 1.0) < epsilon:
+        if np.abs(v[0] - 1.0) < delta:
             v[0] = 0.0
-        if np.abs(v[1] - 1.0) < epsilon:
+        if np.abs(v[1] - 1.0) < delta:
             v[1] = 0.0
-        if np.abs(v[2] - 1.0) < epsilon:
+        if np.abs(v[2] - 1.0) < delta:
             v[2] = 0.0
 
     return struct
@@ -117,9 +117,9 @@ def symcheck(struct, struct_, basis, basis_):
         if (np.abs(struct_basis[i][0]) >= 1.0) or \
             (np.abs(struct_basis[i][1]) >= 1.0) or \
                 (np.abs(struct_basis[i][2]) >= 1.0) or \
-                    (np.abs(np.abs(struct_basis[i][0]) - 1.0) < epsilon) or \
-                        (np.abs(np.abs(struct_basis[i][1]) - 1.0) < epsilon) or \
-                            (np.abs(np.abs(struct_basis[i][2]) - 1.0) < epsilon):
+                    (np.abs(np.abs(struct_basis[i][0]) - 1.0) < delta) or \
+                        (np.abs(np.abs(struct_basis[i][1]) - 1.0) < delta) or \
+                            (np.abs(np.abs(struct_basis[i][2]) - 1.0) < delta):
             continue
 
         diff = np.inf
@@ -129,9 +129,9 @@ def symcheck(struct, struct_, basis, basis_):
             if (np.abs(struct_basis_[j][0]) >= 1.0) or \
                 (np.abs(struct_basis_[j][1]) >= 1.0) or \
                     (np.abs(struct_basis_[j][2]) >= 1.0) or \
-                        (np.abs(np.abs(struct_basis_[j][0]) - 1.0) < epsilon) or \
-                            (np.abs(np.abs(struct_basis_[j][1]) - 1.0) < epsilon) or \
-                                (np.abs(np.abs(struct_basis_[j][2]) - 1.0) < epsilon):
+                        (np.abs(np.abs(struct_basis_[j][0]) - 1.0) < delta) or \
+                            (np.abs(np.abs(struct_basis_[j][1]) - 1.0) < delta) or \
+                                (np.abs(np.abs(struct_basis_[j][2]) - 1.0) < delta):
                 continue
 
             if (np.linalg.norm(struct[i] - struct_[j]) < diff):
@@ -264,6 +264,6 @@ for i in range(depth):
                 # plt.show()
 
                 if (symcheck(struct_cart_Rzx, struct_cart_Rzxz, basis_Rzx, basis_Rzxz)):
-                    print('symfind: found point symmetry along [%d%d%d] axis of %d order!' % (i, j, k, ord))
+                    print('symfind: symcheck(): found point symmetry along [%d%d%d] axis of %d order!' % (i, j, k, ord))
                 else:
-                    print('symfind: %d order symcheck failed...' % (ord))
+                    print('symfind: symcheck(): %d order failed...' % (ord))
